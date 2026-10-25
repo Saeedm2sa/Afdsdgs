@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ردیاب فروشندگان</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+
+    <!-- Firebase -->
+    <script src="https://cdn.jsdelivr.net/npm/firebase@8.10.1/firebase-app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@8.10.1/firebase-auth.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/firebase@8.10.1/firebase-firestore.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Tahoma, Arial, sans-serif; background: #f0f2f5; overflow: hidden; }
+
+        #app { width: 100%; height: 100vh; position: relative; }
+
+        .page { 
+            display: none; 
+            width: 100%; 
+            height: 100vh; 
+            flex-direction: column; 
+            padding: 20px;
+        }
+        .page.active { display: flex; }
+
+        /* Login Page */
+        #loginPage { 
+            justify-content: center; 
+            align-items: center; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .login-box {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            width: 100%;
+            max-width: 400px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        .login-box h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+        .login-box p {
+            text-align: center;
+            color: #666;
+            margin-bottom: 25px;
+            font-size: 14px;
+        }
+        .role-select {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .role-btn {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 12px;
+            background: white;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .role-btn.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+            color: #667eea;
+            font-weight: bold;
+        }
+        .role-btn i { font-size: 28px; display: block; margin-bottom: 5px; }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            margin-bottom: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: border 0.3s;
+        }
+        input:focus { outline: none; border-color: #667eea; }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:active { transform: scale(0.98); }
+
+        .btn-success { background: #4CAF50; color: white; margin-bottom: 10px; }
+        .btn-danger { background: #f44336; color: white; margin-bottom: 10px; }
+        .btn-outline { 
+            background: transparent; 
+            color: #667eea; 
+            border: 2px solid #667eea; 
+        }
+
+        /* Salesperson Page */
+        #salesPage { background: #f8f9fa; padding-top: 60px; }
+        .header {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            height: 60px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status-card {
+            background: white;
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        .status-card h2 { color: #333; margin-bottom: 10px; font-size: 20px; }
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+        .status-active { background: #e8f5e9; color: #2e7d32; }
+        .status-inactive { background: #ffebee; color: #c62828; }
+        .pulse {
+            width: 10px; height: 10px;
+            background: #4CAF50;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(76,175,80,0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(76,175,80,0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(76,175,80,0); }
+        }
+        .info-text { color: #666; font-size: 14px; margin-top: 10px; line-height: 1.8; }
+        .coords { 
+            font-family: monospace; 
+            background: #f5f5f5; 
+            padding: 10px; 
+            border-radius: 8px; 
+            margin-top: 10px;
+            font-size: 13px;
+            direction: ltr;
+            text-align: center;
+        }
+
+        /* Manager Page */
+        #managerPage { padding: 0; padding-top: 60px; }
+        #map { 
+            width: 100%; 
+            height: calc(100vh - 60px); 
+            z-index: 1;
+        }
+        .map-controls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+        }
+        .map-controls .btn { flex: 1; font-size: 13px; padding: 12px 5px; }
+
+        .salesperson-list {
+            position: fixed;
+            top: 70px;
+            left: 10px;
+            right: 10px;
+            max-height: 200px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 12px;
+            padding: 10px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: none;
+        }
+        .salesperson-list.show { display: block; }
+        .sp-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            font-size: 14px;
+        }
+        .sp-color {
+            width: 14px; height: 14px;
+            border-radius: 50%;
+            margin-left: 10px;
+            flex-shrink: 0;
+        }
+        .sp-name { flex: 1; font-weight: bold; }
+        .sp-time { color: #888; font-size: 12px; }
+
+        .legend {
+            position: fixed;
+            top: 70px;
+            right: 10px;
+            background: rgba(255,255,255,0.95);
+            padding: 12px;
+            border-radius: 12px;
+            z-index: 1000;
+            font-size: 13px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 200px;
+        }
+        .legend-title { font-weight: bold; margin-bottom: 8px; color: #333; }
+
+        .alert {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #333;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            z-index: 10000;
+            font-size: 14px;
+            display: none;
+        }
+        .alert.show { display: block; }
+        .alert.error { background: #c62828; }
+        .alert.success { background: #2e7d32; }
+
+        .config-box {
+            background: #fff3e0;
+            border: 1px solid #ffb74d;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #e65100;
+        }
+        .config-box b { display: block; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="app">
+    <!-- Alert -->
+    <div id="alert" class="alert"></div>
+
+    <!-- ==================== LOGIN PAGE ==================== -->
+    <div id="loginPage" class="page active">
+        <div class="login-box">
+            <h1>📍 ردیاب فروشندگان</h1>
+            <p>مدیر فروش عزیز، نقش خود را انتخاب کنید</p>
+
+            <div class="config-box" id="configBox">
+                <b>⚙️ تنظیمات Firebase</b>
+                برای اتصال به سرور، اطلاعات Firebase خود را در کد وارد کنید.
+                <br>اگر Firebase ندارید، برنامه در حالت آفلاین کار می‌کند.
+            </div>
+
+            <div class="role-select">
+                <div class="role-btn selected" data-role="sales" onclick="selectRole('sales')">
+                    <span>🚶</span>
+                    <div>فروشنده</div>
+                </div>
+                <div class="role-btn" data-role="manager" onclick="selectRole('manager')">
+                    <span>👔</span>
+                    <div>مدیر</div>
+                </div>
+            </div>
+
+            <input type="text" id="userName" placeholder="نام و نام خانوادگی" value="">
+            <input type="text" id="userCode" placeholder="کد پرسنلی (اختیاری)">
+
+            <button class="btn btn-primary" onclick="login()">ورود به برنامه</button>
+        </div>
+    </div>
+
+    <!-- ==================== SALESPERSON PAGE ==================== -->
+    <div id="salesPage" class="page">
+        <div class="header">
+            <span>🚶 فروشنده: </span>
+            <span id="salesName"></span>
+        </div>
+
+        <div class="status-card">
+            <h2>وضعیت ارسال موقعیت</h2>
+            <div class="status-indicator status-inactive" id="statusBadge">
+                <span>●</span>
+                <span id="statusText">متوقف</span>
+            </div>
+            <div class="info-text" id="salesInfo">
+                برای شروع کار، دکمه سبز را بزنید. موقعیت شما هر 10 ثانیه ثبت می‌شود.
+            </div>
+            <div class="coords" id="coords" style="display:none;">
+                lat: <span id="lat">-</span> | lng: <span id="lng">-</span>
+            </div>
+        </div>
+
+        <button class="btn btn-success" id="btnStart" onclick="startTracking()">
+            ▶️ شروع ارسال موقعیت
+        </button>
+        <button class="btn btn-danger" id="btnStop" onclick="stopTracking()" style="display:none;">
+            ⏹ توقف ارسال موقعیت
+        </button>
+        <button class="btn btn-outline" onclick="logout()">
+            🔙 خروج از برنامه
+        </button>
+    </div>
+
+    <!-- ==================== MANAGER PAGE ==================== -->
+    <div id="managerPage" class="page">
+        <div class="header">
+            <span>👔 پنل مدیریت | </span>
+            <span id="onlineCount">0 فروشنده آنلاین</span>
+        </div>
+
+        <div class="legend" id="legend">
+            <div class="legend-title">🗺 راهنما</div>
+            <div style="font-size:12px; color:#666; line-height:1.8;">
+                🔴 = فروشنده فعال<br>
+                🔵 = مسیر حرکت<br>
+                👆 روی مارکر کلیک کنید
+            </div>
+        </div>
+
+        <div class="salesperson-list" id="spList"></div>
+
+        <div id="map"></div>
+
+        <div class="map-controls">
+            <button class="btn btn-primary" onclick="toggleRoutes()">
+                🛤 مسیرها
+            </button>
+            <button class="btn btn-primary" onclick="toggleList()">
+                📋 لیست
+            </button>
+            <button class="btn btn-outline" onclick="logout()">
+                🔙 خروج
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+
+<script>
+// ==================== CONFIG ====================
+// ⬇️⬇️⬇️ اینجا را با اطلاعات Firebase خودتان پر کنید ⬇️⬇️⬇️
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+    projectId: "YOUR_PROJECT_ID",
+    storageBucket: "YOUR_PROJECT_ID.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
+// ⬆️⬆️⬆️ اینجا را با اطلاعات Firebase خودتان پر کنید ⬆️⬆️⬆️
+
+// ==================== GLOBAL STATE ====================
+let db = null;
+let auth = null;
+let currentUser = null;
+let userRole = 'sales';
+let trackingInterval = null;
+let watchId = null;
+let map = null;
+let markers = {};
+let polylines = {};
+let routesVisible = false;
+let unsubscribe = null;
+const colors = ['#e53935','#1e88e5','#43a047','#fb8c00','#8e24aa','#00acc1','#3949ab','#7cb342'];
+
+// ==================== INIT ====================
+function init() {
+    // Try Firebase
+    try {
+        if (firebaseConfig.apiKey && !firebaseConfig.apiKey.includes('YOUR_')) {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.firestore();
+            auth = firebase.auth();
+            document.getElementById('configBox').style.display = 'none';
+        } else {
+            showAlert('⚠️ برنامه در حالت آفلاین است. برای اتصال لحظه‌ای، Firebase را تنظیم کنید.', 4000);
+        }
+    } catch(e) {
+        console.log('Firebase not available:', e);
+        showAlert('⚠️ حالت آفلاین فعال است', 3000);
+    }
+
+    // Check saved session
+    const saved = localStorage.getItem('salesTrackerSession');
+    if (saved) {
+        const session = JSON.parse(saved);
+        currentUser = session;
+        userRole = session.role;
+        if (userRole === 'manager') showManagerPage();
+        else showSalesPage();
+    }
+}
+
+// ==================== LOGIN ====================
+function selectRole(role) {
+    userRole = role;
+    document.querySelectorAll('.role-btn').forEach(btn => {
+        btn.classList.toggle('selected', btn.dataset.role === role);
+    });
+}
+
+function login() {
+    const name = document.getElementById('userName').value.trim();
+    const code = document.getElementById('userCode').value.trim();
+
+    if (!name) {
+        showAlert('❌ لطفاً نام خود را وارد کنید', 3000, 'error');
+        return;
+    }
+
+    const userId = code || 'user_' + Math.random().toString(36).substr(2, 9);
+    currentUser = {
+        id: userId,
+        name: name,
+        code: code,
+        role: userRole,
+        loginTime: new Date().toISOString()
+    };
+
+    localStorage.setItem('salesTrackerSession', JSON.stringify(currentUser));
+
+    if (userRole === 'manager') showManagerPage();
+    else showSalesPage();
+}
+
+function logout() {
+    stopTracking();
+    if (unsubscribe) unsubscribe();
+    localStorage.removeItem('salesTrackerSession');
+    currentUser = null;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('loginPage').classList.add('active');
+    location.reload();
+}
+
+// ==================== SALES PAGE ====================
+function showSalesPage() {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('salesPage').classList.add('active');
+    document.getElementById('salesName').textContent = currentUser.name;
+}
+
+function startTracking() {
+    if (!navigator.geolocation) {
+        showAlert('❌ مرورگر شما از GPS پشتیبانی نمی‌کند', 4000, 'error');
+        return;
+    }
+
+    document.getElementById('btnStart').style.display = 'none';
+    document.getElementById('btnStop').style.display = 'block';
+    document.getElementById('statusBadge').className = 'status-indicator status-active';
+    document.getElementById('statusText').textContent = 'در حال ارسال...';
+    document.getElementById('coords').style.display = 'block';
+
+    // Add pulse dot
+    const badge = document.getElementById('statusBadge');
+    badge.innerHTML = '<div class="pulse"></div><span id="statusText">در حال ارسال...</span>';
+
+    // Send immediately
+    sendLocation();
+
+    // Then every 10 seconds
+    trackingInterval = setInterval(sendLocation, 10000);
+
+    // Also watch for changes
+    watchId = navigator.geolocation.watchPosition(
+        pos => updateCoords(pos.coords.latitude, pos.coords.longitude),
+        err => console.log('Watch error:', err),
+        { enableHighAccuracy: true }
+    );
+
+    showAlert('✅ ارسال موقعیت شروع شد', 2000, 'success');
+}
+
+function stopTracking() {
+    if (trackingInterval) clearInterval(trackingInterval);
+    if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+    trackingInterval = null;
+    watchId = null;
+
+    document.getElementById('btnStart').style.display = 'block';
+    document.getElementById('btnStop').style.display = 'none';
+    document.getElementById('statusBadge').className = 'status-indicator status-inactive';
+    document.getElementById('statusBadge').innerHTML = '<span>●</span><span id="statusText">متوقف</span>';
+    document.getElementById('coords').style.display = 'none';
+
+    showAlert('⏹ ارسال موقعیت متوقف شد', 2000);
+}
+
+function sendLocation() {
+    navigator.geolocation.getCurrentPosition(
+        position => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const timestamp = new Date();
+
+            updateCoords(lat, lng);
+
+            const data = {
+                userId: currentUser.id,
+                name: currentUser.name,
+                lat: lat,
+                lng: lng,
+                timestamp: timestamp.toISOString(),
+                online: true
+            };
+
+            // Save to Firebase
+            if (db) {
+                db.collection('locations').doc(currentUser.id).set(data);
+                db.collection('location_history').add(data);
+            }
+
+            // Also save locally for offline
+            saveLocalLocation(data);
+        },
+        error => {
+            console.error('GPS Error:', error);
+            showAlert('❌ خطا در دریافت موقعیت: ' + error.message, 3000, 'error');
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+}
+
+function updateCoords(lat, lng) {
+    document.getElementById('lat').textContent = lat.toFixed(6);
+    document.getElementById('lng').textContent = lng.toFixed(6);
+}
+
+function saveLocalLocation(data) {
+    let history = JSON.parse(localStorage.getItem('locHistory') || '[]');
+    history.push(data);
+    // Keep last 500 points
+    if (history.length > 500) history = history.slice(-500);
+    localStorage.setItem('locHistory', JSON.stringify(history));
+}
+
+// ==================== MANAGER PAGE ====================
+function showManagerPage() {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('managerPage').classList.add('active');
+
+    setTimeout(() => {
+        initMap();
+        listenToLocations();
+        loadRoutes();
+    }, 100);
+}
+
+function initMap() {
+    if (map) return;
+
+    // Default to Tehran
+    map = L.map('map').setView([35.6892, 51.3890], 11);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap'
+    }).addTo(map);
+}
+
+function listenToLocations() {
+    if (!db) {
+        showAlert('⚠️ Firebase متصل نیست. داده‌ها به صورت آفلاین نمایش داده می‌شوند.', 4000);
+        loadOfflineLocations();
+        return;
+    }
+
+    unsubscribe = db.collection('locations').onSnapshot(snapshot => {
+        const onlineIds = new Set();
+        const spList = document.getElementById('spList');
+        let listHTML = '';
+        let colorIdx = 0;
+
+        snapshot.forEach(doc => {
+            const d = doc.data();
+            if (!d.lat || !d.lng) return;
+
+            onlineIds.add(doc.id);
+            const latlng = [d.lat, d.lng];
+            const color = colors[colorIdx % colors.length];
+            colorIdx++;
+
+            // Update or create marker
+            if (markers[doc.id]) {
+                markers[doc.id].setLatLng(latlng);
+                markers[doc.id].setPopupContent(`<b>${d.name || 'فروشنده'}</b><br>${formatTime(d.timestamp)}`);
+            } else {
+                const marker = L.circleMarker(latlng, {
+                    radius: 12,
+                    fillColor: color,
+                    color: '#fff',
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.9
+                }).addTo(map);
+                marker.bindPopup(`<b>${d.name || 'فروشنده'}</b><br>${formatTime(d.timestamp)}`);
+                markers[doc.id] = marker;
+            }
+
+            // Add to list
+            const timeAgo = timeSince(d.timestamp);
+            listHTML += `
+                <div class="sp-item">
+                    <div class="sp-color" style="background:${color}"></div>
+                    <div class="sp-name">${d.name || 'فروشنده'}</div>
+                    <div class="sp-time">${timeAgo}</div>
+                </div>
+            `;
+        });
+
+        // Remove offline markers
+        Object.keys(markers).forEach(id => {
+            if (!onlineIds.has(id)) {
+                map.removeLayer(markers[id]);
+                delete markers[id];
+            }
+        });
+
+        // Update counts
+        document.getElementById('onlineCount').textContent = onlineIds.size + ' فروشنده آنلاین';
+        spList.innerHTML = listHTML || '<div class="sp-item">هیچ فروشنده فعالی یافت نشد</div>';
+
+        // Fit bounds if we have markers
+        const allLatLngs = Object.values(markers).map(m => m.getLatLng());
+        if (allLatLngs.length > 0) {
+            const group = new L.featureGroup(Object.values(markers));
+            map.fitBounds(group.getBounds().pad(0.1));
+        }
+    }, err => {
+        console.error('Firestore error:', err);
+        showAlert('❌ خطا در دریافت داده‌ها', 3000, 'error');
+    });
+}
+
+function loadRoutes() {
+    if (!db || routesVisible) return;
+
+    db.collection('location_history')
+        .orderBy('timestamp', 'desc')
+        .limit(200)
+        .get()
+        .then(snapshot => {
+            const userPaths = {};
+            snapshot.forEach(doc => {
+                const d = doc.data();
+                if (!d.lat || !d.lng) return;
+                if (!userPaths[d.userId]) userPaths[d.userId] = [];
+                userPaths[d.userId].push([d.lat, d.lng]);
+            });
+
+            let colorIdx = 0;
+            Object.values(userPaths).forEach(points => {
+                if (points.length >= 2) {
+                    // Reverse to get chronological order
+                    points.reverse();
+                    const polyline = L.polyline(points, {
+                        color: colors[colorIdx % colors.length],
+                        weight: 3,
+                        opacity: 0.7,
+                        dashArray: '5, 10'
+                    }).addTo(map);
+                    polylines[colorIdx] = polyline;
+                    colorIdx++;
+                }
+            });
+        });
+}
+
+function toggleRoutes() {
+    routesVisible = !routesVisible;
+    Object.values(polylines).forEach(line => {
+        if (routesVisible) map.addLayer(line);
+        else map.removeLayer(line);
+    });
+    showAlert(routesVisible ? '🛤 مسیرها نمایش داده شد' : '🛤 مسیرها مخفی شد', 2000);
+}
+
+function toggleList() {
+    document.getElementById('spList').classList.toggle('show');
+}
+
+function loadOfflineLocations() {
+    // Load from localStorage for demo
+    const history = JSON.parse(localStorage.getItem('locHistory') || '[]');
+    if (history.length === 0) {
+        document.getElementById('spList').innerHTML = '<div class="sp-item">داده‌ای موجود نیست</div>';
+        return;
+    }
+
+    // Group by user
+    const byUser = {};
+    history.forEach(h => {
+        if (!byUser[h.userId]) byUser[h.userId] = [];
+        byUser[h.userId].push(h);
+    });
+
+    let colorIdx = 0;
+    let listHTML = '';
+
+    Object.entries(byUser).forEach(([uid, points]) => {
+        const last = points[points.length - 1];
+        const color = colors[colorIdx % colors.length];
+        const latlng = [last.lat, last.lng];
+
+        if (!markers[uid]) {
+            const marker = L.circleMarker(latlng, {
+                radius: 12,
+                fillColor: color,
+                color: '#fff',
+                weight: 2,
+                fillOpacity: 0.9
+            }).addTo(map);
+            marker.bindPopup(`<b>${last.name}</b><br>(آفلاین)`);
+            markers[uid] = marker;
+        }
+
+        listHTML += `
+            <div class="sp-item">
+                <div class="sp-color" style="background:${color}"></div>
+                <div class="sp-name">${last.name}</div>
+                <div class="sp-time">${points.length} نقطه</div>
+            </div>
+        `;
+        colorIdx++;
+    });
+
+    document.getElementById('onlineCount').textContent = Object.keys(byUser).length + ' فروشنده (آفلاین)';
+    document.getElementById('spList').innerHTML = listHTML;
+}
+
+// ==================== UTILS ====================
+function formatTime(ts) {
+    if (!ts) return '-';
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    return date.toLocaleTimeString('fa-IR');
+}
+
+function timeSince(ts) {
+    if (!ts) return '-';
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    const seconds = Math.floor((new Date() - date) / 1000);
+    if (seconds < 60) return 'همین الان';
+    const mins = Math.floor(seconds / 60);
+    if (mins < 60) return mins + ' دقیقه پیش';
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return hours + ' ساعت پیش';
+    return Math.floor(hours / 24) + ' روز پیش';
+}
+
+function showAlert(msg, duration=3000, type='') {
+    const el = document.getElementById('alert');
+    el.textContent = msg;
+    el.className = 'alert show ' + type;
+    setTimeout(() => el.classList.remove('show'), duration);
+}
+
+// ==================== START ====================
+window.onload = init;
+</script>
+</body>
+</html>
